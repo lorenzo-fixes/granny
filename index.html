@@ -1,127 +1,204 @@
 <!DOCTYPE html>
 <html lang="en-us">
 <head>
-  <base href="https://cdn.jsdelivr.net/gh/web-ports/granny@main/">
-  <meta charset="utf-8">
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <title>Unity WebGL Player | Granny</title>
+    <base href="https://cdn.jsdelivr.net/gh/web-ports/granny@main/">
 
-  <link rel="shortcut icon" href="TemplateData/favicon.ico">
-  <script src="TemplateData/UnityProgress.js"></script>
-  <script src="Build/UnityLoader.js"></script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      height: 100%;
-      width: 100%;
-      background: black;
-    }
+    <title>Granny</title>
 
-    #unityContainer {
-      width: 100vw;
-      height: 100vh;
-    }
+    <link rel="shortcut icon" href="TemplateData/favicon.ico">
 
-  #loading-text {
-  font-weight: bold;
-  background: linear-gradient(
-    270deg,
-    #ff0000,
-    #ff7f00,
-    #ffff00,
-    #00ff00,
-    #0000ff,
-    #4b0082,
-    #8f00ff
-  );
-  background-size: 400% 400%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: rainbow 3s ease infinite;
-}
+    <script src="TemplateData/UnityProgress.js"></script>
+    <script src="Build/UnityLoader.js"></script>
 
-@keyframes rainbow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-  </style>
-<div id="loading-text"
-    style="color: white; font-size: 48px; font-family: cursive; text-align: center; margin-top: 20px;"> LOADING...
-  </div>
-  <script>
-    var loadingText = document.querySelector("#loading-text");
-    let totalBytes = 0;
-    let loadedBytes = 0;
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            background: black;
+        }
 
-    async function fetchWithProgress(url) {
-      const response = await fetch(url);
-      const reader = response.body.getReader();
-      let chunks = [];
-      let received = 0;
-      while (true) {
-        const {
-          done,
-          value
-        } = await reader.read();
-        if (done) break;
-        received += value.length;
-        loadedBytes += value.length;
-        chunks.push(value);
-        let mbDone = (loadedBytes / (1024 * 1024)).toFixed(2);
-        let mbTotal = '567.86';
-        loadingText.textContent = `LOADING... ${mbDone} MB / ${mbTotal} MB`;
-      }
-      let fullBuffer = new Uint8Array(received);
-      let offset = 0;
-      for (let chunk of chunks) {
-        fullBuffer.set(chunk, offset);
-        offset += chunk.length;
-      }
-      return fullBuffer.buffer;
-    }
+        #unityContainer {
+            width: 100vw;
+            height: 100vh;
+        }
 
-    async function mergeFiles(fileParts, cacheKey) {
-      const buffers = await Promise.all(
-        fileParts.map(part => fetchWithProgress(part))
-      );
-      const mergedBlob = new Blob(buffers);
-      return URL.createObjectURL(mergedBlob);
-    }
+        #loading-text {
+            position: fixed;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-family: cursive;
+            font-size: 32px;
+            font-weight: bold;
+            background: linear-gradient(
+                270deg,
+                #ff0000,
+                #ff7f00,
+                #ffff00,
+                #00ff00,
+                #0000ff,
+                #4b0082,
+                #8f00ff
+            );
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: rainbow 3s ease infinite;
+        }
 
-    function getParts(file, start, end) {
-      let parts = [];
-      for (let i = start; i <= end; i++) {
-        parts.push(file + ".part" + i);
-      }
-      return parts;
-    }
-    (async () => {
-      const [dataUrl] = await Promise.all([
-        mergeFiles(getParts("Build/GrannyPortButBetter.data.unityweb", 1, 29), "GrannyPortButBetter.data.unityweb")
-      ]);
-            const originalOpen = XMLHttpRequest.prototype.open;
-      XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-          if (url.includes("GrannyPortButBetter.data.unityweb")) {
-              url = dataUrl;
-          }
-          return originalOpen.call(this, method, url, ...rest);
-      };
-          var unityInstance = UnityLoader.instantiate(
-      "unityContainer",
-      "Build/GrannyPortButBetter.json",
-      { onProgress: UnityProgress }
-    );
-    loadingText.remove();
-    })();
-  </script>
+        #error-text {
+            display: none;
+            position: fixed;
+            top: 45%;
+            left: 10%;
+            width: 80%;
+            color: white;
+            text-align: center;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+        }
+
+        @keyframes rainbow {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-  <div id="unityContainer"></div>
+    <div id="loading-text">LOADING... 0 MB / 567.86 MB</div>
+    <div id="error-text"></div>
+    <div id="unityContainer"></div>
+
+    <script>
+        const loadingText = document.getElementById("loading-text");
+        const errorText = document.getElementById("error-text");
+
+        let loadedBytes = 0;
+        const totalMB = 567.86;
+
+        async function fetchWithProgress(url) {
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                throw new Error(`Failed to download a game file: ${response.status}`);
+            }
+
+            if (!response.body) {
+                const blob = await response.blob();
+                loadedBytes += blob.size;
+                return blob;
+            }
+
+            const reader = response.body.getReader();
+            const chunks = [];
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) {
+                    break;
+                }
+
+                chunks.push(value);
+                loadedBytes += value.byteLength;
+
+                const loadedMB = (loadedBytes / (1024 * 1024)).toFixed(2);
+                loadingText.textContent =
+                    `LOADING... ${loadedMB} MB / ${totalMB} MB`;
+            }
+
+            return new Blob(chunks);
+        }
+
+        async function mergeFiles(fileParts) {
+            const blobs = await Promise.all(
+                fileParts.map(fetchWithProgress)
+            );
+
+            const mergedBlob = new Blob(blobs, {
+                type: "application/octet-stream"
+            });
+
+            return URL.createObjectURL(mergedBlob);
+        }
+
+        function getParts(file, start, end) {
+            const parts = [];
+
+            for (let i = start; i <= end; i++) {
+                parts.push(`${file}.part${i}`);
+            }
+
+            return parts;
+        }
+
+        async function startGame() {
+            try {
+                const dataUrl = await mergeFiles(
+                    getParts(
+                        "Build/GrannyPortButBetter.data.unityweb",
+                        1,
+                        29
+                    )
+                );
+
+                const originalOpen = XMLHttpRequest.prototype.open;
+
+                XMLHttpRequest.prototype.open = function (
+                    method,
+                    url,
+                    ...rest
+                ) {
+                    if (
+                        typeof url === "string" &&
+                        url.includes("GrannyPortButBetter.data.unityweb")
+                    ) {
+                        url = dataUrl;
+                    }
+
+                    return originalOpen.call(this, method, url, ...rest);
+                };
+
+                UnityLoader.instantiate(
+                    "unityContainer",
+                    "Build/GrannyPortButBetter.json",
+                    {
+                        onProgress: UnityProgress
+                    }
+                );
+
+                loadingText.remove();
+            } catch (error) {
+                console.error("Game loading failed:", error);
+                loadingText.style.display = "none";
+                errorText.style.display = "block";
+                errorText.textContent =
+                    "The game could not load. Refresh the page and try again.";
+            }
+        }
+
+        startGame();
+    </script>
+
 </body>
 </html>
